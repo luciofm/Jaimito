@@ -4,12 +4,6 @@ var db = require('nano')('http://127.0.0.1:5984/pushserver');
 var S = require("string");
 var config = require(userConfig());
 
-/* SETUP */
-var twitter_key = 'O7WRAqjGFyAt5rltjqPLQ';
-var twitter_secret = 'cLUGAIECbsVM4U4Rhz9yX08T2pchPzGt1u24GNjtg';
-var gcm_auth_key = 'YOUR GCM KEY';
-var SERVER_PORT = 8080;
-
 var currentUsers = {};
 var streams = {};
 
