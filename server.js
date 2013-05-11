@@ -16,7 +16,7 @@ function userConfig() {
 function HttpServer() {
     this.server = http.createServer(function(req, res) {
         handleHttpRequest(req, res);
-    }).listen(SERVER_PORT);
+    }).listen(config.SERVER_PORT);
 }
 
 /* Handle requests for registering or unregistering and user for PUSH
@@ -131,8 +131,8 @@ function savePushUser(user) {
 
 function setupTwitterUserStream(user) {
     var twit = new twitter({
-        consumer_key: twitter_key,
-        consumer_secret: twitter_secret,
+        consumer_key: config.twitter_key,
+        consumer_secret: config.twitter_secret,
         access_token_key: user.access_token_key,
         access_token_secret: user.access_token_secret,
         screen_name: user.screen_name
