@@ -16,7 +16,8 @@ and for your '@screen_name' in messages.
 
 How to use it:
 
-$ npm install ntwitter nano string  (to install dependencies)
+    $ npm install ntwitter nano string  (to install dependencies)
+    $ node server.js config.js
 
 You will need a couchdb running with a 'pushserver' db.
 
@@ -24,15 +25,17 @@ Copy configSample.js to config.js and configure the twitter and GCM keys.
 
 Registering a user for push notifications:
 POST to /register with
-{
-  "screen_name":"twitter_screen_name",
-  "access_token_key":"users_access_token_key",
-  "access_token_secret":"users_access_token_secret",
-  "gcm_registration_id":"gcm registration id"
-}
+
+    {
+      "screen_name":"twitter_screen_name",
+      "access_token_key":"users_access_token_key",
+      "access_token_secret":"users_access_token_secret",
+      "gcm_registration_id":"gcm registration id"
+    }
 
 Unregistering for push notifications
 POST /unregister
-{
-  "screen_name":"twitter_screen_name"
-}
+
+    {
+      "screen_name":"twitter_screen_name"
+    }
