@@ -3,6 +3,7 @@ var http = require("http");
 var db = require('nano')('http://127.0.0.1:5984/pushserver');
 var S = require("string");
 var config = require(userConfig());
+var gcm = require('node-gcm');
 
 var currentUsers = {};
 var streams = {};
@@ -36,82 +37,81 @@ function HttpServer() {
  * the information to us...
  */
 function handleHttpRequest(req, res) {
+    if (req.method != 'POST') {
+        sendErrorResponse(405, req, res, "Method not supported");
+        return;
+    }
+
     switch (req.url) {
         case '/register':
-            if (req.method == 'POST') {
-                console.log("[200] " + req.method + " to " + req.url);
+            console.log("[200] " + req.method + " to " + req.url);
 
-                var ok = false;
-                req.on('data', function(chunk) {
-                    var user = JSON.parse(chunk.toString());
-                    ok = savePushUser(user);
-                });
+            var ok = false;
+            req.on('data', function(chunk) {
+                var user = JSON.parse(chunk.toString());
+                ok = savePushUser(user);
+            });
 
-                req.on('end', function() {
-                    // empty 200 OK response for now
-                    if (ok === true) {
-                        var body = '{"status":0}';
-                        res.writeHead(200, "OK", {
-                            'Content-Length': body.length,
-                            'Content-Type': 'application/json'
-                        });
-                        res.write(body);
-                        res.end();
-                    } else {
-                        sendErrorResponse(req, res);
-                    }
-                });
-
-            } else {
-                sendErrorResponse(req, res);
-            }
-            break;
-        case '/unregister':
-            if (req.method == 'POST') {
-                console.log("[200] " + req.method + " to " + req.url);
-
-                req.on('data', function(chunk) {
-                    var user = JSON.parse(chunk.toString());
-                    console.log("Unregister: " + user);
-
-                    var stream = streams[user.screen_name];
-                    if (stream !== null) {
-                        console.log("destroying stream for " + stream.user.screen_name);
-                        currentUsers[user.screen_name] = false;
-                        stream.stream.destroy();
-                        streams[user.screen_name] = null;
-                        db.destroy(stream.user.screen_name, stream.user._rev, function(err, body) {
-                            if (!err)
-                                console.log(body);
-                        });
-                    }
-                });
-
-                req.on('end', function() {
-                    // empty 200 OK response for now
-                    var body = '{"status":1}';
+            req.on('end', function() {
+                // empty 200 OK response for now
+                if (ok === true) {
+                    var body = '{"status":0}';
                     res.writeHead(200, "OK", {
                         'Content-Length': body.length,
                         'Content-Type': 'application/json'
                     });
                     res.write(body);
                     res.end();
-                });
+                } else {
+                    sendErrorResponse(400, req, res, "Bad Request");
+                }
+            });
+            break;
+        case '/unregister':
+            console.log("[200] " + req.method + " to " + req.url);
 
-            } else {
-                sendErrorResponse(res);
-            }
+            req.on('data', function(chunk) {
+                var user = JSON.parse(chunk.toString());
+                console.log("Unregister: " + user);
+
+                var stream = streams[user.screen_name];
+                if (stream !== null) {
+                    console.log("destroying stream for " + stream.user.screen_name);
+                    currentUsers[user.screen_name] = false;
+                    stream.stream.destroy();
+                    streams[user.screen_name] = null;
+                    db.destroy(stream.user.screen_name, stream.user._rev, function(err, body) {
+                        if (!err)
+                            console.log(body);
+                    });
+                }
+            });
+
+            req.on('end', function() {
+                // empty 200 OK response for now
+                var body = '{"status":1}';
+                res.writeHead(200, "OK", {
+                    'Content-Length': body.length,
+                    'Content-Type': 'application/json'
+                });
+                res.write(body);
+                res.end();
+            });
+            break;
+        default:
+            sendErrorResponse(400, req, res, "Bad Request");
     }
 }
 
-function sendErrorResponse(req, res) {
-    console.log("[405] " + req.method + " to " + req.url);
-    var body = '{"message":"Method not supported"}';
-    res.writeHead(405, "Method not supported", {
-        'Content-Length': body.length,
+function sendErrorResponse(code, req, res, message) {
+    console.log("[" + code + "] " + req.method + " to " + req.url);
+    var body = {message:message};
+    var response = JSON.stringify(body);
+    res.writeHead(code, message, {
+        'Content-Length': response.length,
         'Content-Type': 'application/json'
     });
-    res.write(body);
+    res.write(response);
     res.end();
 }
 
@@ -121,6 +121,8 @@ function savePushUser(user) {
         db.insert(user, user.screen_name, function(err, body) {
             if (!err)
                 console.log(body);
+            if (err)
+                console.log(err);
         });
     } else {
         setupTwitterUserStream(user);
@@ -185,16 +187,23 @@ function setupTwitterUserStream(user) {
  */
 function sendPushMessage(user, tweet) {
     console.log("Sending push for " + user.screen_name);
+    var message = new gcm.Message({
+        collapseKey: '1',
+        delayWhileIdle: true,
+        timeToLive: 3,
+        data: {
+            data:tweet
+        }
+    });
+    sender.send(message, [user.gcm_registration_id], 4, function (err, result) {
+        console.log(result);
+    });
 }
 
 /* Initialize saved users on start... */
 db.list({include_docs:true}, function(err, body) {
     if (!err) {
         body.rows.forEach(function(doc) {
-            /*db.get(doc.key, function(err, body) {
-                if (!err)
-                    console.log(body);
-            });*/
             console.log(doc);
             setupTwitterUserStream(doc.doc);
         });
@@ -203,3 +212,5 @@ db.list({include_docs:true}, function(err, body) {
 
 console.log("Port: " + process.env.PORT + " Server: " + process.env.HOST);
 var connection = new HttpServer();
+
+var sender = new gcm.Sender(config.gcm_auth_key);
